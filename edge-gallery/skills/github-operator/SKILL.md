@@ -13,6 +13,7 @@ Use this skill when the user wants an on-device AI workflow to read or update fi
 ## Inputs
 
 Provide JSON with:
+Call the `run_js` tool with script name `index.html` and pass the following as its data JSON string:
 - `action`: `read_file` or `upsert_file`
 - `owner`: GitHub owner/login
 - `repo`: repository name
