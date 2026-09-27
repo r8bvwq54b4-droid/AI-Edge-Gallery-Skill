@@ -1,6 +1,9 @@
 ---
 name: github-operator
 description: Read and update files in a GitHub repository through the GitHub Contents API.
+metadata:
+  require-secret: true
+  require-secret-description: Enter a GitHub fine-grained personal access token with Contents read/write permission for the target repository. The token is passed securely to the skill as GITHUB_TOKEN.
 ---
 
 # GitHub Operator
