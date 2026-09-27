@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Google AI Edge Gallery - GitHub Operator</title>
+</head>
+<body>
+<script>
+(() => {
+  const secretName = "GITHUB_TOKEN";
+
+  function fail(message) {
+    return { ok: false, error: message };
+  }
+
+  function validPart(value, name) {
+    if (typeof value !== "string" || !value || value.length > 200) {
+      throw new Error("Invalid " + name);
+    }
+    return value;
+  }
+
+  function encodePath(path) {
+    return path.split("/").map(encodeURIComponent).join("/");
+  }
+
+  function decodeBase64Utf8(value) {
+    const binary = atob(value.replace(/\n/g, ""));
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function encodeBase64Utf8(value) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  }
+
+  async function getToken() {
+    if (typeof window.require_secret === "function") {
+      return await window.require_secret(secretName);
+    }
+    if (typeof window.requireSecret === "function") {
+      return await window.requireSecret(secretName);
+    }
+    throw new Error("Google AI Edge Gallery secret interface is unavailable");
+  }
+
+  async function githubRequest(url, options) {
+    const token = await getToken();
+    const headers = {
+      "Accept": "application/vnd.github+json",
+      "Authorization": "Bearer " + token,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(options && options.headers ? options.headers : {})
+    };
+    return fetch(url, { ...(options || {}), headers });
+  }
+
+  async function run(input) {
+    try {
+      if (!input || typeof input !== "object") return fail("Input must be a JSON object");
+      const action = validPart(input.action, "action");
+      const owner = validPart(input.owner, "owner");
+      const repo = validPart(input.repo, "repo");
+      const path = validPart(input.path, "path");
+
+      if (!/^[A-Za-z0-9_.-]+$/.test(owner)) throw new Error("Invalid owner");
+      if (!/^[A-Za-z0-9_.-]+$/.test(repo)) throw new Error("Invalid repo");
+      if (path.startsWith("/") || path.includes("..")) throw new Error("Invalid path");
+
+      const api = "https://api.github.com/repos/" + encodeURIComponent(owner) + "/" +
+        encodeURIComponent(repo) + "/contents/" + encodePath(path);
+
+      if (action === "read_file") {
+        const response = await githubRequest(api);
+        const body = await response.json();
+        if (!response.ok) return fail("GitHub read failed: " + (body.message || response.status));
+        return {
+          ok: true,
+          action,
+          owner,
+          repo,
+          path,
+          content: decodeBase64Utf8(body.content || ""),
+          sha: body.sha || null
+        };
+      }
+
+      if (action === "upsert_file") {
+        if (typeof input.content !== "string") throw new Error("content is required");
+        const message = typeof input.message === "string" && input.message
+          ? input.message
+          : "Update " + path;
+
+        let sha = null;
+        const existing = await githubRequest(api);
+        if (existing.ok) {
+          const existingBody = await existing.json();
+          sha = existingBody.sha || null;
+        } else if (existing.status !== 404) {
+          const body = await existing.json().catch(() => ({}));
+          return fail("GitHub lookup failed: " + (body.message || existing.status));
+        }
+
+        const payload = {
+          message,
+          content: encodeBase64Utf8(input.content)
+        };
+        if (sha) payload.sha = sha;
+
+        const response = await githubRequest(api, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const body = await response.json();
+        if (!response.ok) return fail("GitHub write failed: " + (body.message || response.status));
+
+        return {
+          ok: true,
+          action,
+          owner,
+          repo,
+          path,
+          commit_sha: body.commit && body.commit.sha ? body.commit.sha : null,
+          content_sha: body.content && body.content.sha ? body.content.sha : null
+        };
+      }
+
+      return fail("Unsupported action: " + action);
+    } catch (error) {
+      return fail(error && error.message ? error.message : String(error));
+    }
+  }
+
+  window["ai_edge_gallery_get_result"] = async function(input) {
+    return await run(input);
+  };
+})();
+</script>
+</body>
+</html>
