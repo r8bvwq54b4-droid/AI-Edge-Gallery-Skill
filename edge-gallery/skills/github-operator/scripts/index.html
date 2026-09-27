@@ -10,7 +10,7 @@
   const secretName = "GITHUB_TOKEN";
 
   function fail(message) {
-    return { ok: false, error: message };
+    return JSON.stringify({ error: message });
   }
 
   function validPart(value, name) {
@@ -70,7 +70,8 @@
         const response = await githubRequest(api, secret);
         const body = await response.json();
         if (!response.ok) return fail("GitHub read failed: " + (body.message || response.status));
-        return {
+        return JSON.stringify({
+          result: {
           ok: true,
           action,
           owner,
@@ -78,7 +79,8 @@
           path,
           content: decodeBase64Utf8(body.content || ""),
           sha: body.sha || null
-        };
+          }
+        });
       }
 
       if (action === "upsert_file") {
@@ -119,7 +121,8 @@
           path,
           commit_sha: body.commit && body.commit.sha ? body.commit.sha : null,
           content_sha: body.content && body.content.sha ? body.content.sha : null
-        };
+          }
+        });
       }
 
       return fail("Unsupported action: " + action);
