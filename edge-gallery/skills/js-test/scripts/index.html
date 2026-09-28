@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Edge JS Test</title>
+</head>
+<body>
+<script>
+window["ai_edge_gallery_get_result"] = async (data, secret) => {
+  try {
+    const params = JSON.parse(data);
+    return JSON.stringify({
+      result: "AI Edge JS is working: " + (params.message || "OK")
+    });
+  } catch (e) {
+    return JSON.stringify({ error: e.message });
+  }
+};
+</script>
+</body>
+</html>
