@@ -111,7 +111,7 @@
           body: JSON.stringify(payload)
         });
         const body = await response.json();
-        if (!response.ok) return fail("GitHub write failed: " + (body.message || response.status));
+        if (!response.ok) return fail("GitHub write failed: HTTP " + response.status + " — " + (body.message || "unknown error") + (body.documentation_url ? " — " + body.documentation_url : ""));
 
         return JSON.stringify({
           result: {
